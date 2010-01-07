@@ -22,7 +22,7 @@ my $varcov;
 
 my $seqfilename;
 
-
+my $sdev;
 
 # Specify cmdline options and process command line...
 my $options_okay = GetOptions (
@@ -35,6 +35,7 @@ my $options_okay = GetOptions (
     't=s'		=> \$type, # --tx, intron, intergenic
     'fast=s'		=> \$fast, # --fast, (fasta or fastq), is a string (a or q)
     'varcov=s'		=> \$varcov, # --verbose, is a string (T or F)
+    'sdev=f'		=> \$sdev, # st. dev of converage, floating
     'verbose=s'		=> \$verbose, # --verbose, is a string (T or F)
     'i=s'     => \$seqfilename     # --in option expects a string for sequence file name
 
@@ -72,7 +73,6 @@ if ($type eq "intron") {
 	print "this file is from your random transcript selection, and this script\n";
 	print "will attempt to only generated reads for introns that were in your\n";
 	print "random transcript selection\n";
-	sleep 2;
 	$rtxfilename = "rand_transcripts.bed"; ##!
 	print "seqfilename is $seqfilename\n";
 }
@@ -96,29 +96,42 @@ unless (($varcov eq "T") || ($varcov eq "F")) {
 	exit;
 }
 
+
+my $covstring;
+
 if ($varcov eq "T") { 
 	$varcov = "var";
+	if ($sdev eq "") { 
+		print "No sdev specified, using 1 as default\n";
+		sleep 1;
+		$sdev = 1;
+	}
+	$covstring = "var$cov"."x_sd$sdev";
+
 } else {
 	$varcov = "";
+	$covstring = "var$cov"."x_fixed";
 }
+
+
 
 my $originalcov = $cov;
 
 my $SIMREAD;
 my $SIMREAD1;
 my $SIMREAD2;
-my $ANSWERS = new FileHandle ">"."$outdir"."/answers_tab_$varcov$cov"."x.txt" or die "can't open answers_tab.txt"; #OUTPUT: table of transcripts
-$ANSWERS->printf("FB_txid\tFB_id\tChr\tTx_length\tNumreads\tRPK\n");  # Print header for my "answers" table
+my $ANSWERS = new FileHandle ">"."$outdir"."/answers_tab_$covstring".".txt" or die "can't open answers_tab.txt"; #OUTPUT: table of transcripts
+$ANSWERS->printf("FB_txid\tFB_id\tChr\tTx_length\tNumreads\tRPK\tcov\n");  # Print header for my "answers" table
 
 if ($ends == 1) {
-	if ($fast eq "q") { $SIMREAD = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$varcov$cov"."x.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "a") { $SIMREAD = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$varcov$cov"."x.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "q") { $SIMREAD = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring".".fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "a") { $SIMREAD = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring".".fa" or die "can't open read output file"; } #OUTPUT: sim. reads
 }
 if ($ends == 2) {
-	if ($fast eq "q") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$varcov$cov"."x_1.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "q") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$varcov$cov"."x_2.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "a") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$varcov$cov"."x_1.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "a") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$varcov$cov"."x_2.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "q") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_1.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "q") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_2.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "a") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_1.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "a") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_2.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
 
 }
 
@@ -217,6 +230,44 @@ sub gaussian_rand {
     # return both if wanted, else just one
     return wantarray ? ($g1, $g2) : $g1;
 }
+
+#~~~~~~~~~~~~~~~~~~~~~~~
+# histogram
+#~~~~~~~~~~~~~~~~~~~~~~~
+
+ sub histogram
+ {
+   my ($bin_width, @list) = @_;
+ 
+   # This calculates the frequencies for all available bins in the data set
+   my %histogram;
+   $histogram{ceil(($_ + 1) / $bin_width) -1}++ for @list;
+ 
+   my $max;
+   my $min;
+ 
+   # Calculate min and max
+   while ( my ($key, $value) = each(%histogram) )
+   {
+     $max = $key if !defined($min) || $key > $max;
+     $min = $key if !defined($min) || $key < $min;
+   }
+ 
+ 
+   for (my $i = $min; $i <= $max; $i++)
+   {
+     my $bin       = sprintf("% 10d", ($i) * $bin_width);
+     my $frequency = $histogram{$i} || 0;
+ 
+     $frequency = "#" x $frequency;
+ 
+     print $bin." ".$frequency."\n";
+   }
+ 
+   print "===============================\n\n";
+   print "    Width: ".$bin_width."\n";
+   print "    Range: ".$min."-".$max."\n\n";
+ }
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~
@@ -714,7 +765,7 @@ while ($seq = <SEQFILE>) {
 			if ($prevheader =~ /FBtr[0-9]+/) {$fbtr = $&;}  ## This is only used if doing intron file
 			
 			if (($type ne "intron") || (($type eq "intron") && (exists($rtxs{$fbtr})))) {
-			print "adding transcript # $txid to hash\n";
+			
 			$seqhash{$txid}[0] = $previd;
 			$seqhash{$txid}[1] = $tx;
 			$seqhash{$txid}[2] = $prevheader;
@@ -738,14 +789,18 @@ while ($seq = <SEQFILE>) {
 close (SEQFILE);
 
 
+
 if ($prevheader =~ /FBtr[0-9]+/) {$fbtr = $&;}  ## This is only used if doing intron file
 
 if (($type ne "intron") || (($type eq "intron") && (exists($rtxs{$fbtr})))) {
 	$seqhash{$txid}[0] = $previd;
 	$seqhash{$txid}[1] = $tx;
 	$seqhash{$txid}[2] = $prevheader;
-	print "added transcript # $txid to hash\n";
+	#print "added transcript # $txid to hash\n";
 }
+
+print "Loaded $txid transcripts to hash\n";
+print "Working on generating reads\n";
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -771,12 +826,15 @@ my $txlength;
 my $RPK;
 
 my $mean;
-my $sdev;
+
 my $newcov;
 
 my $innerd = 0;
 
 my $lengthcutoff;
+
+my $mincovtx = 0;
+
 
 if ($ends == 1) {
 	$lengthcutoff = 75;
@@ -792,6 +850,8 @@ if ($ends == 1) {
 # coverage * G = NL
 # cov = NL/G
 my $kcount = 0;
+
+my @randcovs;
 
 foreach $k (sort keys %seqhash) {
 	if ($verbose eq "T") {print "a\n";}	
@@ -829,9 +889,15 @@ foreach $k (sort keys %seqhash) {
 	if ($varcov eq "var") {
 	
 		$mean = $originalcov;
-		$sdev = 1;
-		$newcov = gaussian_rand() * $sdev + $mean;
-		printf("Random coverage is %.2f\n", $newcov);
+		#$sdev = 1;
+		$newcov = (gaussian_rand() * $sdev) + $mean;
+		# Sanity check, if rand coverage is negative or too low
+		if ($newcov < 0.5) {
+			$newcov = 0.5;
+			$mincovtx += 1;
+		}
+		#printf("Random coverage is %.2f\n", $newcov);
+		push (@randcovs, $newcov);
 		$cov = $newcov;
 	
 	}
@@ -852,7 +918,7 @@ foreach $k (sort keys %seqhash) {
 
 	
 	if ($txlength > $lengthcutoff) {
-		$ANSWERS->printf("$fbtr\t$FB\t$chr\t$txlength\t$numreads\t$RPK\n");  # Print my "answers" table
+		$ANSWERS->printf("$fbtr\t$FB\t$chr\t$txlength\t$numreads\t$RPK\t$cov\n");  # Print my "answers" table
 		if ($verbose eq "T") {print "c\n";}	
 	
 			if ($ends == 1) {
@@ -873,6 +939,13 @@ foreach $k (sort keys %seqhash) {
 }		
 
 print "\n";
+
+print "Here is a histogram of random coverages (rounded)\n";
+
+histogram(1,@randcovs);
+
+print "\n---------------------\n";
+print "Warning:  For $mincovtx transcripts, the random coverage was less than 0.5, and was set to equal 0.5\n";
 
 #== Below prints out the models
 =pod
