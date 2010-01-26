@@ -24,6 +24,15 @@ my $seqfilename;
 
 my $sdev;
 
+my %wighash;
+
+my $mmtf;
+my $qualspeed;
+my @randquals = ();
+
+my @coordstring;
+my $optid;
+
 # Specify cmdline options and process command line...
 my $options_okay = GetOptions (
     # Application-specific options...
@@ -37,6 +46,9 @@ my $options_okay = GetOptions (
     'varcov=s'		=> \$varcov, # --verbose, is a string (T or F)
     'sdev=f'		=> \$sdev, # st. dev of converage, floating
     'verbose=s'		=> \$verbose, # --verbose, is a string (T or F)
+    'mmtf=s'		=> \$mmtf, # --mmtf, is a string (T or F)
+    'qualspeed=s'   => \$qualspeed, # --qualspeed is a string (T or F)
+    'optid=s'   => \$optid, # --id is an optional identifier for the run (string)
     'i=s'     => \$seqfilename     # --in option expects a string for sequence file name
 
 
@@ -96,6 +108,18 @@ unless (($varcov eq "T") || ($varcov eq "F")) {
 	exit;
 }
 
+unless (($mmtf eq "T") || ($mmtf eq "F")) {
+	print "mmtf must be 'T' or 'F'\n";
+	exit;
+}
+
+
+unless (($qualspeed eq "T") || ($qualspeed eq "F")) {
+	print "qualspeed must be 'T' or 'F'\n";
+	exit;
+}
+
+
 
 my $covstring;
 
@@ -106,34 +130,91 @@ if ($varcov eq "T") {
 		sleep 1;
 		$sdev = 1;
 	}
-	$covstring = "var$cov"."x_sd$sdev";
+	$covstring = "$type"."_"."$varcov$cov"."x_sd$sdev";
 
 } else {
 	$varcov = "";
-	$covstring = "var$cov"."x_fixed";
+	$covstring = "$type"."_"."$varcov$cov"."x_fixed";
 }
 
 
 
 my $originalcov = $cov;
+my %junchash;
+
+my $e;
+if ($ends == 1) {$e = "se"}
+if ($ends == 2) {$e = "pe"}
+
 
 my $SIMREAD;
 my $SIMREAD1;
 my $SIMREAD2;
-my $ANSWERS = new FileHandle ">"."$outdir"."/answers_tab_$covstring".".txt" or die "can't open answers_tab.txt"; #OUTPUT: table of transcripts
-$ANSWERS->printf("FB_txid\tFB_id\tChr\tTx_length\tNumreads\tRPK\tcov\n");  # Print header for my "answers" table
+my $ANSWERS = new FileHandle ">"."$outdir"."/answers_tab$optid"."_"."$e$covstring".".txt" or die "can't open answers_tab.txt"; #OUTPUT: table of transcripts
+$ANSWERS->printf("Feature_id\tFB_id\tChr\tTx_length\tNumreads\tRPK\tcov\n");  # Print header for my "answers" table
+
+
+my $WIG = new FileHandle ">"."$outdir"."/basecoverage$optid"."_$e$covstring".".wig" or die "can't open wigfile"; #OUTPUT: wigle file
+
+my $READBED = new FileHandle ">"."$outdir"."/readbed$optid"."_$e$covstring".".bed" or die "can't open readbed"; #OUTPUT: bed file
+
+print { $READBED } "track name=simulatedReads description='Simulated Reads'\n";
+
+my $JUNCTAB;
+
+if ($type eq "tx") {
+$JUNCTAB = new FileHandle ">"."$outdir"."/junctab$optid"."_$covstring".".txt" or die "can't open junction table"; #OUTPUT: junction table
+}
+
+
 
 if ($ends == 1) {
-	if ($fast eq "q") { $SIMREAD = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring".".fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "a") { $SIMREAD = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring".".fa" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "q") { $SIMREAD = new FileHandle ">"."$outdir"."/sim$optid"."_"."$e"."_"."$covstring".".fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "a") { $SIMREAD = new FileHandle ">"."$outdir"."/sim$optid"."_"."$e"."_"."$covstring".".fa" or die "can't open read output file"; } #OUTPUT: sim. reads
 }
 if ($ends == 2) {
-	if ($fast eq "q") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_1.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "q") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_2.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "a") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_1.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
-	if ($fast eq "a") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim_"."$ends"."_"."$covstring"."_2.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "q") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim$optid"."_"."$e"."_"."$covstring"."_1.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "q") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim$optid"."_"."$e"."_"."$covstring"."_2.fastq" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "a") { $SIMREAD1 = new FileHandle ">"."$outdir"."/sim$optid"."_"."$e"."_"."$covstring"."_1.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
+	if ($fast eq "a") { $SIMREAD2 = new FileHandle ">"."$outdir"."/sim$optid"."_"."$e"."_"."$covstring"."_2.fa" or die "can't open read output file"; } #OUTPUT: sim. reads
 
 }
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Read in GFF file (This is for getting the strand of single-exon genes)
+
+my $gfffile = "/users/labuser/data/annotation/dmel-all-no-analysis-r5.17.gff";
+my %gffhash;
+my $gffline;
+my @g = ();
+
+open (GFFFILE, $gfffile);
+
+while ($gffline = <GFFFILE>) {
+
+	@g = split /\t+/,$gffline;
+	#if (@g[2] eq "mRNA") {
+	if (@g[2] eq "gene") {
+		if (@g[8] =~ /ID\=([a-zA-Z0-9]+)/) {
+			$gffhash{$1}[0] = @g[0];  #chr
+			$gffhash{$1}[1] = @g[3];  #start
+			$gffhash{$1}[2] = @g[4];  #stop
+			$gffhash{$1}[3] = @g[6];  #strand
+			
+			#print "$1\t$gffhash{$1}[0]\t$gffhash{$1}[1]\t$gffhash{$1}[2]\t$gffhash{$1}[3]\n";
+		}
+	}
+	
+
+
+}
+
+
+close (GFFFILE);
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
@@ -282,6 +363,56 @@ sub gaussian_rand {
  
 
 #~~~~~~~~~~~~~~~~~~~~~~~
+# explode coordinate string
+#~~~~~~~~~~~~~~~~~~~~~~~
+
+ sub coordexplode
+ {
+     my($join) = @_;
+     my @coordstring;
+     my $num1;
+     
+     my $i;
+     my @matches;
+     
+     #$string = "12 34 56 78 90 98 76 54 32 10";
+	(@matches) = ($join =~ /[0-9]+\.\.[0-9]+/g);
+     
+     $i = 0;
+    foreach (@matches) {
+ 	  #print "* $_\n";
+ 	  if ($_ =~ /([0-9]+)\.\.([0-9]+)/) {
+ 	      	push(@coordstring, $1);
+ 	      	
+     		for ($i = $2 - $1; $i >= 1; $i--) {
+     			push(@coordstring, $coordstring[$#coordstring] + 1);
+     			
+     	}
+
+ 	  }
+	}
+
+     
+     
+     #if ($join =~ /([0-9]+)\.\.([0-9]+)/) {
+     
+     #	$i = 0;
+     #	@coordstring[$i] = $1;
+     #	while ($i < ($2 - $1)) {
+     #		$i += 1;
+     #		@coordstring[$i] = @coordstring[$i - 1] + 1
+     #	}
+     
+    # }
+     
+     return @coordstring;
+     
+ }
+
+
+#(4999006..5000837,5000900..5001458)
+
+#~~~~~~~~~~~~~~~~~~~~~~~
 # mismatch generator
 #~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -300,8 +431,10 @@ sub mmgen {
 	my $checkstring = "";
 	my @nucs = ('A','C','G','T');
 	my $checkstring;
+	my $i;
 	## Iterate over each position in the sequence
 	## Use probabilities to make a mismatch
+	if ($verbose eq "T") {print "..1 *\n";}
 	for ($position = 0; $position < length($sequence); ++$position) {
 		$randtemp = rand();
 		$mmatch = 0;
@@ -309,8 +442,9 @@ sub mmgen {
 			$mmatch += 1;
 		}
 		$oldbase = substr($sequence,$position, 1);
+		#print "..2 *\n";
 		if ($mmatch > 0) {  ## If a mismatch is called, what to change base to
-		
+			if ($verbose eq "T") {print "..3 *\n";}
 			## $mmbase{$j}{$k}
 			## this object is a hash of hash. j is ref, k is read
 			
@@ -320,18 +454,30 @@ sub mmgen {
 			# Convert to a hash of just probs for old base
 			my %temphash;
 			
-			if ($oldbase ne "N") {
-			for my $k ( keys %{ $mmbase{$oldbase} } ) {
-				$temphash{$k} = $mmbase{$oldbase}{$k};
-			}
-			
-			$newbase = weighted_rand(%temphash);
+			if ($oldbase =~ /[ACGT]/) {
+				for my $k ( keys %{ $mmbase{$oldbase} } ) {
+				if ($verbose eq "T") {print "..4 *\n";}
+					$temphash{$k} = $mmbase{$oldbase}{$k}; #make a new hash for mms for this base
+					
+				}
+				if ($verbose eq "T") {print "..5 *\n";}
+				if ($verbose eq "T") {print "position is $position oldbase is $oldbase\n";}
+				if ($verbose eq "T") {print "sequence is  $sequence\n";}
+				$i = 0;
+				for my $k (keys %temphash) {
+					#print "$k\t$temphash{$k}\n";
+					$i += $temphash{$k};
+				}
+				if ($verbose eq "T") {print "total is $i\n";}
+				$newbase = weighted_rand(%temphash);
+				if ($verbose eq "T") {print "..6 *\n";}
 			} else {
-			$newbase = $oldbase;
+				$newbase = "N";
+				print "An $oldbase was mmgen'ed to N\n";
 			}
 			
 			$checkstring = $checkstring . $newbase;
-			
+			if ($verbose eq "T") {print "..7 *\n";}
 			$testmmhash{"$oldbase".">"."$newbase"} += 1;
 		} else {
 			$checkstring = $checkstring . $oldbase;
@@ -389,6 +535,7 @@ sub qualgen {
 
 
 
+
 ##################################################
 ##################################################
 #~~~~~~~~~~~~~~~~~~~~~~~
@@ -397,9 +544,14 @@ sub qualgen {
 ##################################################
 ##################################################
 
+#track name=pairedReads description="Clone Paired Reads" useScore=1
+#chr22 1000 5000 cloneA 960 + 1000 5000 0 2 567,488, 0,3512
+#chr22 2000 6000 cloneB 900 - 2000 6000 0 2 433,399, 0,3601
+
 sub generate_reads {
-	my($sequence, $id, $mer, $numreads, $fast) = @_;
-		if ($verbose eq "T") {print "d\n";}	
+	my($sequence, $id, $mer, $numreads, $fast, $chr, $strand,$direction,$mmtf,$qualspeed) = @_;
+		if ($verbose eq "T") {print "d\n";}
+		#print " coordstring 0 is $coordstring[0]\n"; 
 	my $count2;
 	my $position;
 	my $randtemp;
@@ -407,20 +559,107 @@ sub generate_reads {
 	my $randstart;
 	my $qualstring;
 	my $seqlen = length($sequence);
-	#print "*c\n";
 	my $readid;	
+	my $count;
+	my $genomecoord;
+	
+	my @junctions;
+	my $numjuncs;
+	
+	my @readcoords = ();
+	my $seqstrand;
+	
+	my $blockcoordstring;
+	my $blocksizestring;
+	my $tempstart;
+	my $tempend;
+	
+	my $tempjunc;
+	
+	my $origstrand = $strand;
+	
+	my $j;
+	my $prev;
+	my $junckey;
+	my $offset;
 	
 	$sequence =~ tr/acgtn/ACGTN/;
 	
-	for ($count2=1; $count2<$numreads; $count2++) {
-		if ($verbose eq "T") {print "e\n";}	
-		if ($fast eq "q") {	$readid = "@"."$id"."_"."$count2" };
-		if ($fast eq "a") {	$readid = ">"."$id"."_"."$count2" };
-		#print "$readid\n";
-		$SIMREAD->printf($readid);
-		$SIMREAD->printf("\n");
+	for ($count2=1; $count2<$numreads; $count2++) { # iterate based on number of reads you want
 		
-		$randstart = int(rand($seqlen-$mer));
+		$strand = $origstrand;
+		
+		$blockcoordstring = "";
+		$blocksizestring = "";
+				
+		$randstart = int(rand($seqlen-$mer)); # Note that zeros are possible, zero-based start
+		
+		
+		
+		if ($verbose eq "T") {print "$seqlen\t$mer\t$randstart\n";}
+
+		@readcoords = (); # This will store each coordinate for this read
+						  # It will be used to create a base-level wiggle track (+1 based)
+						  # Note these coords are already in +1 format
+				
+		for ($count=0; $count<$mer; $count++) { # Get genomic coordinates for this read
+			$genomecoord = @coordstring[$randstart + $count];
+			# Add coordinates to hash
+			$wighash{$chr}[$genomecoord] += 1; # These coords are independent of strand, so OK to instantiate this hash now			
+			push(@readcoords, $genomecoord); #readcoords are still in 1-based system
+			
+		}
+		
+		my $gstart = @readcoords[0];
+		my $rangestring = "$gstart..";
+		@junctions = (); # This will store all the junctions spanned by this read
+		foreach (@readcoords) { # Generate a rangestring, find junctions
+			if ($_ > ($gstart + 1)) {
+				push(@junctions,"$gstart".".."."$_");
+				$rangestring = $rangestring."$gstart".",";
+				$gstart = $_;
+				$rangestring = $rangestring.$gstart."..";
+				
+			}
+		$gstart = $_;
+		}
+		$rangestring = $rangestring."$readcoords[$#readcoords]";
+				
+		#---------------------------------
+		# Randomly get forward or reverse
+		# Figure out the strand
+		
+		$randrev = rand();
+
+		if ($randrev > 0.5) { $strand = $strand * -1 } # Farther down, the read will be revcom'ed
+		
+		if ($strand < 0) {
+			$rangestring = "_$chr"."\:minus(".$rangestring.")";
+			$seqstrand = "-";
+		} elsif ($strand > 0) {
+			$rangestring = "_$chr"."\:plus(".$rangestring.")";	
+			$seqstrand = "+";
+		} else {
+		print "I'm confused\n";
+		sleep 2;
+		}
+		
+		
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		## Print full readid to filehandle
+
+		
+		if ($fast eq "q") {	$readid = "@"."$id"."_"."$count2"; };
+		if ($fast eq "a") {	$readid = ">"."$id"."_"."$count2"; };
+		$readid = $readid.$rangestring;
+		#print "readid here is $readid\n";
+		#sleep 1;
+		$SIMREAD->printf($readid); 
+		$SIMREAD->printf("\n");
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		
+		# Get read sequence
+		
 		$read = substr($sequence, $randstart, $mer);
 		if ($verbose eq "T") {print "f\n";}	
 		if (length($read) != $mer) {
@@ -430,44 +669,566 @@ sub generate_reads {
 		}
 		
 		#---------------------------------
-		# Randomly get forward or reverse
-		$randrev = rand();
+		# Reverse the read, based on random selector above
 
 		if ($randrev > 0.5) { 
-
 			$revcom = reverse $read;
 			$revcom =~ tr/ACGTacgtnN/TGCATGCANN/;
 			$read = $revcom;
 		}
 
-		if ($verbose eq "T") {print "g\n";}	
+		#!  Printing to BED in zero-based system
+		$readid =~ s/\>//;
+		$readid =~ s/\@//;
+				
+		if (@junctions) { # Junctions array is NOT empty
+
+			print { $READBED } "chr$chr\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t$readid\t"."1"."\t$seqstrand\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t255,0,0\t";
+			$numjuncs = @junctions;
+			print { $READBED } $numjuncs + 1,"\t";
+			$tempstart = $readcoords[0];
+			my $sizetemp;
+			my $coordtemp;
+			$blockcoordstring = "0";
+			$blocksizestring = "";
+			#print "\n** $tempstart to $readcoords[$#readcoords]\t$blockcoordstring\t$blocksizestring **\n";
+			foreach (@junctions) {
+				#$j += 1;
+				$tempjunc = $_;
+				$junckey = "chr$chr"."_".$_."_$direction";
+				if ($tempjunc =~ /([0-9]+)\.\.([0-9]+)/) {$gstart = $1};
+	
+				$offset = $gstart - @readcoords[0] + 1;
+
+				if (exists($junchash{$junckey})) {
+					$junchash{$junckey}[0] += 1;
+					$prev = pop @{$junchash{$junckey}};
+					#print "prev for $junckey is $prev\n";
+					
+					push(@{$junchash{$junckey}}, "$prev\,".$offset);
+
+				} else {
+					$junchash{$junckey}[0] += 1;
+					#print "added ", $offset, " to hash with key $junckey\n";
+					push(@{$junchash{$junckey}},$offset);
+					#sleep 1;
+				}
+				
+				if ($verbose eq "T") {print $_."\n";}
+					if ($_ = /([0-9]+)\.\.([0-9]+)/) {
+						#print "1 is $1 and 2 is $2\n"; 
+						$sizetemp = $1 - $tempstart + 1;
+						$blocksizestring = $blocksizestring.$sizetemp."\,";
+						$coordtemp = $2 - $readcoords[0];
+						$blockcoordstring = $blockcoordstring."\,".$coordtemp;
+						if ($verbose eq "T") {print "\n$tempstart\t$blockcoordstring\t$blocksizestring";}
+						$tempstart = $2;
+					}
+				
+			}
+			$sizetemp = $readcoords[$#readcoords] - $tempstart + 1;
+			$blocksizestring = $blocksizestring.$sizetemp;
+			#$blockcoordstring = $blockcoordstring.",".$readcoords[$#readcoords] - $tempend;
+			if ($verbose eq "T") {print "\n Final: $blockcoordstring\t$blocksizestring";}
+			
+			print { $READBED } "$blocksizestring\t$blockcoordstring\n";
+
+		} else { # If there are no junctions, the line is simple
+			print { $READBED } "chr$chr\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t$readid\t"."1"."\t$seqstrand\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t255,0,0\t1\t75\t0\n";
+
+
+
+		}
+
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		# Mismatch generator 
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		#print "readid *here* is $readid\n";
+		#sleep 1;
+
+		if ($verbose eq "T") {print "\nstart $randstart, strand $strand, $readid g\n$read\n";}	
+		
+		if ($mmtf eq "T") {
 		$SIMREAD->printf(mmgen($read));
+		} elsif ($mmtf eq "F") {
+		$SIMREAD->printf($read);
+		} else {
+		print "I dont get it \n";
+		sleep 3;
+		}
 		$SIMREAD->printf("\n");
+		if ($verbose eq "T") {print "h\n";}	
 		
 		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		# Now make a quality string
 		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		if ($fast eq "q") {	
-			$readid = "+"."$id"."_"."$count2";
+			#$readid = "+"."$id"."_"."$count2";
+			$readid = "+".$readid;
 			$SIMREAD->printf($readid);
-			$SIMREAD->printf("\n");	
-			$qualstring = qualgen($mer);
-			if (length($qualstring) != $mer) {
-				print "Qualstring length is wrong!\n";
-				print $qualstring, "\n";
-				sleep 2;
+			$SIMREAD->printf("\n");			
+			if ($qualspeed eq "T") {			
+				$qualstring = @randquals[int(rand(999))];
+				#print "qualstring is $qualstring\n";
+				print { $SIMREAD } $qualstring;
+				$SIMREAD->printf("\n");		
+			} else {
+				$qualstring = qualgen($mer);
+				if (length($qualstring) != $mer) {
+					print "Qualstring length is wrong!\n";
+					print $qualstring, "\n";
+					sleep 2;
+				}
+				print { $SIMREAD } $qualstring;
+				$SIMREAD->printf("\n");
 			}
-			print { $SIMREAD } $qualstring;
-			$SIMREAD->printf("\n");
-		}
+			
+		
+		}		
+		
 	}
+	
+
 }
+
+
+
+
+sub generate_pe_reads {
+	my($sequence, $id, $mer, $numreads, $fast, $chr, $strand,$direction,$mmtf,$qualspeed) = @_;
+		if ($verbose eq "T") {print "d\n";}
+		#print " coordstring 0 is $coordstring[0]\n"; 
+	my $count2;
+	my $position;
+	my $randtemp;
+	my $randqual;
+	my $randstart;
+	my $qualstring;
+	my $seqlen = length($sequence);
+	my $readid;	
+	my $count;
+	my $genomecoord;
+	
+	my @junctions;
+	my $numjuncs;
+	
+	my @readcoords = ();
+	my $seqstrand;
+	
+	my $blockcoordstring;
+	my $blocksizestring;
+	my $tempstart;
+	my $tempend;
+	
+	my $tempjunc;
+	
+	my $origstrand = $strand;
+	
+	my $j;
+	my $prev;
+	my $junckey;
+	my $offset;
+	
+	my $innerd;
+	
+	$sequence =~ tr/acgtn/ACGTN/;
+	
+	for ($count2=1; $count2<$numreads; $count2++) { # iterate based on number of reads you want
+		$innerd = weighted_rand(%indist_weights);
+		while ($seqlen < (($mer * 2) + $innerd)) { 
+		$innerd = weighted_rand(%indist_weights);
+		}
+		
+		$strand = $origstrand;
+		
+		$blockcoordstring = "";
+		$blocksizestring = "";
+				
+		#$randstart = int(rand($seqlen-$mer)); # Note that zeros are possible, zero-based start
+		$randstart = int(rand($seqlen - $mer - $mer - $innerd));
+
+		
+		
+		if ($verbose eq "T") {print "$seqlen\t$mer\t$randstart\n";}
+
+		@readcoords = (); # This will store each coordinate for this read
+						  # It will be used to create a base-level wiggle track (+1 based)
+						  # Note these coords are already in +1 format
+				
+		for ($count=0; $count<$mer; $count++) { # Get genomic coordinates for this read
+			$genomecoord = @coordstring[$randstart + $count];
+			# Add coordinates to hash
+			$wighash{$chr}[$genomecoord] += 1; # These coords are independent of strand, so OK to instantiate this hash now			
+			push(@readcoords, $genomecoord); #readcoords are still in 1-based system
+			
+		}
+		
+		my $gstart = @readcoords[0];
+		my $rangestring = "$gstart..";
+		@junctions = (); # This will store all the junctions spanned by this read
+		foreach (@readcoords) { # Generate a rangestring, find junctions
+			if ($_ > ($gstart + 1)) {
+				push(@junctions,"$gstart".".."."$_");
+				$rangestring = $rangestring."$gstart".",";
+				$gstart = $_;
+				$rangestring = $rangestring.$gstart."..";
+				
+			}
+		$gstart = $_;
+		}
+		$rangestring = $rangestring."$readcoords[$#readcoords]";
+				
+		#---------------------------------
+		# Randomly get forward or reverse
+		# Figure out the strand
+		
+		if ($strand < 0) {
+			$rangestring = "_$chr"."\:minus(".$rangestring.")";
+			$seqstrand = "-";
+		} elsif ($strand > 0) {
+			$rangestring = "_$chr"."\:plus(".$rangestring.")";	
+			$seqstrand = "+";
+		} else {
+		print "I'm confused 1\n";
+		sleep 2;
+		}
+		
+		
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		## Print full readid to filehandle
+
+		
+		if ($fast eq "q") {	$readid = "@"."$id"."_"."$count2"; };
+		if ($fast eq "a") {	$readid = ">"."$id"."_"."$count2"; };
+		$readid = $readid.$rangestring."#0/1";
+		#print "readid here is $readid\n";
+		#sleep 1;
+		$SIMREAD1->printf($readid); 
+		$SIMREAD1->printf("\n");
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		
+		# Get read sequence
+		
+		$read = substr($sequence, $randstart, $mer);
+		if ($verbose eq "T") {print "f\n";}	
+		if (length($read) != $mer) {
+			print "Read length is wrong!\n";
+			print $read, "\n";
+			sleep 2;
+		}
+		
+		#---------------------------------
+
+		#!  Printing to BED in zero-based system
+		$readid =~ s/\>//;
+		$readid =~ s/\@//;
+				
+		if (@junctions) { # Junctions array is NOT empty
+
+			print { $READBED } "chr$chr\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t$readid\t"."1"."\t$seqstrand\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t255,0,0\t";
+			$numjuncs = @junctions;
+			print { $READBED } $numjuncs + 1,"\t";
+			$tempstart = $readcoords[0];
+			my $sizetemp;
+			my $coordtemp;
+			$blockcoordstring = "0";
+			$blocksizestring = "";
+			#print "\n** $tempstart to $readcoords[$#readcoords]\t$blockcoordstring\t$blocksizestring **\n";
+			foreach (@junctions) {
+				#$j += 1;
+				$tempjunc = $_;
+				$junckey = "chr$chr"."_".$_."_$direction";
+				if ($tempjunc =~ /([0-9]+)\.\.([0-9]+)/) {$gstart = $1};
+	
+				$offset = $gstart - @readcoords[0] + 1;
+
+				if (exists($junchash{$junckey})) {
+					$junchash{$junckey}[0] += 1;
+					$prev = pop @{$junchash{$junckey}};
+					#print "prev for $junckey is $prev\n";
+					
+					push(@{$junchash{$junckey}}, "$prev\,".$offset);
+
+				} else {
+					$junchash{$junckey}[0] += 1;
+					#print "added ", $offset, " to hash with key $junckey\n";
+					push(@{$junchash{$junckey}},$offset);
+					#sleep 1;
+				}
+				
+				if ($verbose eq "T") {print $_."\n";}
+					if ($_ = /([0-9]+)\.\.([0-9]+)/) {
+						#print "1 is $1 and 2 is $2\n"; 
+						$sizetemp = $1 - $tempstart + 1;
+						$blocksizestring = $blocksizestring.$sizetemp."\,";
+						$coordtemp = $2 - $readcoords[0];
+						$blockcoordstring = $blockcoordstring."\,".$coordtemp;
+						if ($verbose eq "T") {print "\n$tempstart\t$blockcoordstring\t$blocksizestring";}
+						$tempstart = $2;
+					}
+				
+			}
+			$sizetemp = $readcoords[$#readcoords] - $tempstart + 1;
+			$blocksizestring = $blocksizestring.$sizetemp;
+			#$blockcoordstring = $blockcoordstring.",".$readcoords[$#readcoords] - $tempend;
+			if ($verbose eq "T") {print "\n Final: $blockcoordstring\t$blocksizestring";}
+			
+			print { $READBED } "$blocksizestring\t$blockcoordstring\n";
+
+		} else { # If there are no junctions, the line is simple
+			print { $READBED } "chr$chr\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t$readid\t"."1"."\t$seqstrand\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t255,0,0\t1\t75\t0\n";
+
+
+
+		}
+
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		# Mismatch generator 
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		#print "readid *here* is $readid\n";
+		#sleep 1;
+
+		if ($verbose eq "T") {print "\nstart $randstart, strand $strand, $readid g\n$read\n";}	
+		
+		if ($mmtf eq "T") {
+		$SIMREAD1->printf(mmgen($read));
+		} elsif ($mmtf eq "F") {
+		$SIMREAD1->printf($read);
+		} else {
+		print "I dont get it 1 \n";
+		sleep 3;
+		}
+		$SIMREAD1->printf("\n");
+		if ($verbose eq "T") {print "h\n";}	
+		
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		# Now make a quality string
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		if ($fast eq "q") {	
+			#$readid = "+"."$id"."_"."$count2";
+			$readid = "+".$readid;
+			$SIMREAD1->printf($readid);
+			$SIMREAD1->printf("\n");			
+			if ($qualspeed eq "T") {			
+				$qualstring = @randquals[int(rand(999))];
+				#print "qualstring is $qualstring\n";
+				print { $SIMREAD1 } $qualstring;
+				$SIMREAD1->printf("\n");		
+			} else {
+				$qualstring = qualgen($mer);
+				if (length($qualstring) != $mer) {
+					print "Qualstring length is wrong!\n";
+					print $qualstring, "\n";
+					sleep 2;
+				}
+				print { $SIMREAD1 } $qualstring;
+				$SIMREAD1->printf("\n");
+			}
+			
+		
+		}
+######################################################################		
+######################################################################	
+######################################################################		
+######################################################################	
+		#-----------------------------------
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		# Now print the 2nd read
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+######################################################################		
+######################################################################	
+######################################################################		
+######################################################################	
+		#print "** I am doing the 2nd read\n";
+		$strand = $strand * -1;
+		
+		$blockcoordstring = "";
+		$blocksizestring = "";
+		
+		@readcoords = ();
+		$randstart = $randstart + $mer + $innerd;
+
+		for ($count=0; $count<$mer; $count++) { # Get genomic coordinates for this read
+			$genomecoord = @coordstring[$randstart + $count];
+			# Add coordinates to hash
+			$wighash{$chr}[$genomecoord] += 1; # These coords are independent of strand, so OK to instantiate this hash now			
+			push(@readcoords, $genomecoord); #readcoords are still in 1-based system
+			
+		}
+		
+		my $gstart = @readcoords[0];
+		my $rangestring = "$gstart..";
+		@junctions = (); # This will store all the junctions spanned by this read
+		foreach (@readcoords) { # Generate a rangestring, find junctions
+			if ($_ > ($gstart + 1)) {
+				push(@junctions,"$gstart".".."."$_");
+				$rangestring = $rangestring."$gstart".",";
+				$gstart = $_;
+				$rangestring = $rangestring.$gstart."..";
+				
+			}
+		$gstart = $_;
+		}
+		$rangestring = $rangestring."$readcoords[$#readcoords]";
+				
+		#---------------------------------
+		# Figure out the strand
+		
+		if ($strand < 0) {
+			$rangestring = "_$chr"."\:minus(".$rangestring.")";
+			$seqstrand = "-";
+		} elsif ($strand > 0) {
+			$rangestring = "_$chr"."\:plus(".$rangestring.")";	
+			$seqstrand = "+";
+		} else {
+		print "I'm confused strand is $strand 2\n";
+		sleep 2;
+		}
+
+		
+		if ($fast eq "q") {	$readid = "@"."$id"."_"."$count2"; };
+		if ($fast eq "a") {	$readid = ">"."$id"."_"."$count2"; };
+		$readid = $readid.$rangestring."#0/2";
+		#print "readid here is $readid\n";
+		#sleep 1;
+		$SIMREAD2->printf($readid); 
+		$SIMREAD2->printf("\n");
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		#!  Printing to BED in zero-based system
+		$readid =~ s/\>//;
+		$readid =~ s/\@//;
+				
+		if (@junctions) { # Junctions array is NOT empty
+
+			print { $READBED } "chr$chr\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t$readid\t"."1"."\t$seqstrand\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t255,0,0\t";
+			$numjuncs = @junctions;
+			print { $READBED } $numjuncs + 1,"\t";
+			$tempstart = $readcoords[0];
+			my $sizetemp;
+			my $coordtemp;
+			$blockcoordstring = "0";
+			$blocksizestring = "";
+			#print "\n** $tempstart to $readcoords[$#readcoords]\t$blockcoordstring\t$blocksizestring **\n";
+			foreach (@junctions) {
+				#$j += 1;
+				$tempjunc = $_;
+				$junckey = "chr$chr"."_".$_."_$direction";
+				if ($tempjunc =~ /([0-9]+)\.\.([0-9]+)/) {$gstart = $1};
+	
+				$offset = $gstart - @readcoords[0] + 1;
+
+				if (exists($junchash{$junckey})) {
+					$junchash{$junckey}[0] += 1;
+					$prev = pop @{$junchash{$junckey}};
+					#print "prev for $junckey is $prev\n";
+					
+					push(@{$junchash{$junckey}}, "$prev\,".$offset);
+
+				} else {
+					$junchash{$junckey}[0] += 1;
+					#print "added ", $offset, " to hash with key $junckey\n";
+					push(@{$junchash{$junckey}},$offset);
+					#sleep 1;
+				}
+				
+				if ($verbose eq "T") {print $_."\n";}
+					if ($_ = /([0-9]+)\.\.([0-9]+)/) {
+						#print "1 is $1 and 2 is $2\n"; 
+						$sizetemp = $1 - $tempstart + 1;
+						$blocksizestring = $blocksizestring.$sizetemp."\,";
+						$coordtemp = $2 - $readcoords[0];
+						$blockcoordstring = $blockcoordstring."\,".$coordtemp;
+						if ($verbose eq "T") {print "\n$tempstart\t$blockcoordstring\t$blocksizestring";}
+						$tempstart = $2;
+					}
+				
+			}
+			$sizetemp = $readcoords[$#readcoords] - $tempstart + 1;
+			$blocksizestring = $blocksizestring.$sizetemp;
+			#$blockcoordstring = $blockcoordstring.",".$readcoords[$#readcoords] - $tempend;
+			if ($verbose eq "T") {print "\n Final: $blockcoordstring\t$blocksizestring";}
+			
+			print { $READBED } "$blocksizestring\t$blockcoordstring\n";
+
+		} else { # If there are no junctions, the line is simple
+			print { $READBED } "chr$chr\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t$readid\t"."1"."\t$seqstrand\t",$readcoords[0] - 1,"\t$readcoords[$#readcoords]\t255,0,0\t1\t75\t0\n";
+
+
+
+		}
+
+	#-------------------------		
+		# Get read sequence
+		$read = substr($sequence,$randstart, $mer);
+		# Reverse the read 
+		$revcom = reverse $read;
+		$revcom =~ tr/ACGTacgtnN/TGCATGCANN/;
+		$read = $revcom;
+		if (length($read) != $mer) {
+			print "Read length is wrong!\n";
+			print $read, "\n";
+			sleep 2;
+		}
+		
+		#---------------------------------
+
+				
+		if ($mmtf eq "T") {
+		$SIMREAD2->printf(mmgen($read));
+		} elsif ($mmtf eq "F") {
+		$SIMREAD2->printf($read);
+		} else {
+		print "I dont get it mmtf is $mmtf 2\n";
+		sleep 3;
+		}
+		$SIMREAD2->printf("\n");
+
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		# Now make a quality string
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		# Now make a quality string
+		#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		if ($fast eq "q") {	
+			#$readid = "+"."$id"."_"."$count2";
+			$readid = "+".$readid;
+			$SIMREAD2->printf($readid);
+			$SIMREAD2->printf("\n");			
+			if ($qualspeed eq "T") {			
+				$qualstring = @randquals[int(rand(999))];
+				#print "qualstring is $qualstring\n";
+				print { $SIMREAD2 } $qualstring;
+				$SIMREAD2->printf("\n");		
+			} else {
+				$qualstring = qualgen($mer);
+				if (length($qualstring) != $mer) {
+					print "Qualstring length is wrong!\n";
+					print $qualstring, "\n";
+					sleep 2;
+				}
+				print { $SIMREAD2 } $qualstring;
+				$SIMREAD2->printf("\n");
+			}
+			
+		
+		}
+		
+	
+
+		
+		
+	}
+	
+
+}
+
 
 # Sample Bowtie map file
 
 #HWUSI-EASXXX:4:1:0:1368#0/1 Ê Ê + Ê Ê Ê 2R Ê Ê Ê16938356 NAGGGCTCCTCGCCGTACATGTCGGCCAATTTGCGGAAGCGCGGTCCAAAGTTGGATCGGTAGTCGAAGTTGAGAT Ê 0 Ê Ê Ê 0:G>N,56:C>T,57:A>C 
 #HWUSI-EASXXX:4:1:0:1368#0/2 Ê Ê - Ê Ê Ê 2R Ê Ê Ê16938454 ÊCGGACGAGAGAGGCTGCCATCGGAGTTGCCGTCACCTTCGTACGCGTAATGCCGCACATCGTCCACGGTTGTGGC Ê Ê0 Ê Ê Ê 69:G>A,70:T>G,74:A>G
-sub generate_pe_reads {
+sub generate_pe_reads_old {
 	my($sequence, $id, $mer, $numreads, $fast) = @_;
 	my $count2;
 	my $position;
@@ -732,7 +1493,7 @@ if ($type eq "intron") {
 		if ($f[3] =~ /FBtr[0-9]+/) {			
 			$fbtr = $&;
 			$rtxs{$fbtr} = 1;
-			print "adding $fbtr to rtxfile hash\n";
+			#print "adding $fbtr to rtxfile hash\n";
 		} else {	
 			print "Can't find FBtr number $f[3]\n $rtxline\n";
 			exit;	
@@ -761,15 +1522,21 @@ my $fbtr;
 while ($seq = <SEQFILE>) {
 	if ($seq =~ /^>/) {
 		$header = $seq;
+		
 		if ($txid > 0) {
 			if ($prevheader =~ /FBtr[0-9]+/) {$fbtr = $&;}  ## This is only used if doing intron file
 			
 			if (($type ne "intron") || (($type eq "intron") && (exists($rtxs{$fbtr})))) {
-			
+			#print "putting $txid in seqhash, $fbtr was found $previd\n";
+			#print "length of seq is ". length($tx);
+			#sleep 1;
 			$seqhash{$txid}[0] = $previd;
 			$seqhash{$txid}[1] = $tx;
 			$seqhash{$txid}[2] = $prevheader;
 			$tx = "";
+			
+			} elsif (($type eq "intron") && (! exists($rtxs{$fbtr}))) {
+				$tx = ""  # This is an important change.. hope it is OK
 			}
 
 		}
@@ -793,6 +1560,10 @@ close (SEQFILE);
 if ($prevheader =~ /FBtr[0-9]+/) {$fbtr = $&;}  ## This is only used if doing intron file
 
 if (($type ne "intron") || (($type eq "intron") && (exists($rtxs{$fbtr})))) {
+			print "putting $txid in seqhash\n";
+			print length($tx);
+			#sleep 1;
+
 	$seqhash{$txid}[0] = $previd;
 	$seqhash{$txid}[1] = $tx;
 	$seqhash{$txid}[2] = $prevheader;
@@ -803,9 +1574,65 @@ print "Loaded $txid transcripts to hash\n";
 print "Working on generating reads\n";
 
 
+
+
+#xxxxxxxxxxxxxxxxxxxxxxxxxx
+# Quality score generation speedup
+# Create 1000 qualscores by model, then randomly pick from them.
+
+if (($qualspeed eq "T") & ($fast eq "q")) {
+	
+	my %tempqualhash;
+	my $position;
+	my $maxprob;
+	my $j;
+	my $qualstring;
+
+	
+	my $i;
+	my $randqual;
+	#for ($count = 10; $count >= 1; $count--)
+	for ($i = 0; $i < 1000; ++$i) {
+
+		$qualstring = "";
+		for ($position = 0; $position < $bp; ++$position) {		
+
+			$maxprob = 0;
+			foreach $j (keys %qualpwm) {	
+
+				$tempqualhash{$j} = $qualpwm{$j}[$position];
+				if ($qualpwm{$j}[$position] > $maxprob) {$maxprob = $qualpwm{$j}[$position];}
+			}	
+			$randqual = weighted_rand(%tempqualhash);
+			$qualstring = $qualstring.$randqual;	
+		}	
+			
+			
+		push(@randquals,$qualstring);	
+		#print length($qualstring), "\t$i\n";
+	}
+	
+	
+	if ($verbose eq "T") {print "There were ". @randquals . "random qualities generated\n"};
+#sleep 3;
+if ($verbose eq "T") {
+	foreach (@randquals) {print "$_ \n";}
+}#sleep 3;
+} 
+
+
+#xxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Iterate over sequences and generate reads
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+
+
+
 
 
 my $k;
@@ -852,35 +1679,118 @@ if ($ends == 1) {
 my $kcount = 0;
 
 my @randcovs;
+my $headerstrand;
+my $headercoords;
+my $strand = 0;
+
+my $transcriptid;
 
 foreach $k (sort keys %seqhash) {
 	if ($verbose eq "T") {print "a\n";}	
 	$kcount += 1;
 	$txstring = $seqhash{$k}[1];
 	$hstring = $seqhash{$k}[0];
+	
+	#"loc=2R:complement(4999006..5000837,5000900..5001458);"
+	#print $hstring;
 	 if ($hstring =~ /(FBtr[0-9]+).+loc\=([a-zA-Z0-9\_]+)\:([a-zA-Z]*)\(*([0-9\.\,]+).+(FBgn[0-9]{7})/) {
 
-		 $fbtr = $1;	
+		 $fbtr = $1;
+		 $transcriptid = $1;
 		 $chr = $2;
+		 $headerstrand = $3;
+		 $headercoords = $4;
 		 $FB = $5;  # This is the parent gene
 
+	} elsif ($hstring =~ /\>([A-Za-z0-9\_\:]+).+loc\=([a-zA-Z0-9\_]+)\:([a-zA-Z]*)\(*([0-9\.\,]+).+(FBgn[0-9]{7}).+(FBtr[0-9]{7})/) { 
+		#print "* hstring is $hstring\n";	
+		 $fbtr = $1;	
+		 $chr = $2;
+		 $headerstrand = $3;
+		 $headercoords = $4;
+		 $FB = $5;  # This is the parent gene
+		 $transcriptid = $6;
+		# print "headerstrand is $headerstrand\n";
+		#print "headerccords is $headercoords\n";
+		#print "fb is $FB\n";
+		#print "chr is $chr\n";
+		#print "fbtrr is $fbtr\n";
+	} elsif ($hstring =~ /\>([A-Za-z0-9\_\:]+).+loc\=([a-zA-Z0-9\_]+)\:([a-zA-Z]*)\(*([0-9\.\,]+)/) { 
+		#print "* hstring is $hstring\n";	
+		 $fbtr = $1;	
+		 $chr = $2;
+		 $headerstrand = $3;
+		 $headercoords = $4;
+		 if ($fbtr =~ /(FBgn[0-9]{7})/) {$FB = $&};  # This is the parent gene
+		 #print "headerstrand is $headerstrand\n";
+		#print "headerccords is $headercoords\n";
+		#print "fb is $FB\n";
+		#print "chr is $chr\n";
+		#print "fbtrr is $fbtr\n";
+		#sleep $1
 	} else {
-	
 		$hstring =~ s/\>//;
 		$hstring =~ s/\n//;
-		$fbtr = $hstring;
+		$fbtr = $hstring;	
 	
 	}
 	
-	unless ($type eq "tx") {
-			if ($hstring =~ /(FBgn[0-9]{7})/) {
-	 
-			 $fbtr = $type."_".$kcount;
-			
-			 
-			 $FB = $&;  # This is the parent gene
+	#print "$fbtr\n";
+	#print "$chr\n";
+	#print "$headerstrand\n";
+	#print "$headercoords\n";
+	#print $headercoords, "\n";
+	@coordstring = coordexplode($headercoords);
+	#print "headercoords was $headercoords\n";
+	#print "before generating reads, coord 0 is $coordstring[0]\n";
+	#sleep 2;
+	#foreach (@coordstring) {
+ 	#  print "$_\n";
+	#}
+	#sleep 2;
+	my $gffstrand;
+	my $direction;
+	
+	if ($type eq "intergenic") {$headerstrand = "join"}
+	
+	if ($headerstrand eq "join") {
+		$strand = 1;
+		$direction = "f";
+	} elsif ($headerstrand eq "complement") {
+		$strand = -1;
+		$direction = "r";
+	} else {
+		#$gffstrand = $gffhash{$transcriptid}[3];
+		$gffstrand = $gffhash{$FB}[3];
+		#print "Couldn't determine strand from header line for $fbtr, got $gffstrand from hash\n";	
+		#print $hstring, "\n";
+		if ($gffstrand eq "+") {
+			$strand = 1;
+			$direction = "f";
+			} elsif ($gffstrand eq "-") {
+			$strand = -1;
+			$direction = "r";
+			} else { 
+			print "Couldn't determine strand for $fbtr, so picked +\n";
+			print "transcript is was $transcriptid\n";
+			if (exists($gffhash{$transcriptid})) {print "hash entry exists $gffhash{$transcriptid}[0]\t $gffhash{$transcriptid}[3]\n";}
+			$strand = 1;
+			$direction = "f";
 
 			}
+	}
+	
+	
+	
+	unless ($type eq "tx") {
+			#if ($hstring =~ /(FBgn[0-9]{7})/) {
+	 
+			 #$fbtr = $type."_".$kcount;
+			
+			 
+			 #$FB = $&;  # This is the parent gene
+
+			#}
 
 	
 	}
@@ -916,6 +1826,18 @@ foreach $k (sort keys %seqhash) {
 
 		if ($verbose eq "T") {print "b\n";}	
 
+
+	# Convert to revcom if on minus strand.  This
+	# is important to getting the coordinates right
+	my $revcom;
+		if ($strand < 0) { 
+			$revcom = reverse $txstring;
+			$revcom =~ tr/ACGTacgtnN/TGCATGCANN/;
+			$txstring = $revcom;
+			$strand = 1;
+		}
+
+
 	
 	if ($txlength > $lengthcutoff) {
 		$ANSWERS->printf("$fbtr\t$FB\t$chr\t$txlength\t$numreads\t$RPK\t$cov\n");  # Print my "answers" table
@@ -923,11 +1845,13 @@ foreach $k (sort keys %seqhash) {
 	
 			if ($ends == 1) {
 			#print "*b\t$k\n";
-			if ($verbose eq "T") {print "Starting 'generate reads' sub $fbtr $numreads $txstring\n";}	
-			generate_reads($txstring, $fbtr, $bp, $numreads, $fast);
+			if ($verbose eq "T") {print "Starting 'generate reads' sub $fbtr $numreads strand: $strand $direction $txstring $chr\n";}	
+			generate_reads($txstring, $fbtr, $bp, $numreads, $fast, $chr, $strand, $direction, $mmtf, $qualspeed);
 			} else {
 			#print "*b\t$k\n";
-			generate_pe_reads($txstring, $fbtr, $bp, $numreads, $fast);
+			generate_pe_reads($txstring, $fbtr, $bp, $numreads, $fast, $chr, $strand, $direction, $mmtf, $qualspeed);
+
+			#generate_pe_reads($txstring, $fbtr, $bp, $numreads, $fast);
 			}
 			
 			#generate_qualities($txstring, substr($hstring,0,length($hstring) - 1), $bp, $numreads);
@@ -940,12 +1864,18 @@ foreach $k (sort keys %seqhash) {
 
 print "\n";
 
+if ($varcov eq "var") {
 print "Here is a histogram of random coverages (rounded)\n";
 
 histogram(1,@randcovs);
 
+}
+
+if ($mincovtx > 0) {
 print "\n---------------------\n";
 print "Warning:  For $mincovtx transcripts, the random coverage was less than 0.5, and was set to equal 0.5\n";
+}
+
 
 #== Below prints out the models
 =pod
@@ -955,9 +1885,110 @@ foreach $j (keys %mmtypes) {
 	$mmbase{$refbase}{$readbase} = $mmtypes{$j};
 	$mmbasetotals{$refbase} += $mmtypes{$j};	
 }
+=cut
 
-for my $k ( keys (%testmmhash) ) {
 
-	print "$k:",  $testmmhash{$k}, "\n";
+=pod
+for $k ( keys %wighash ) {
+    print "k is $k\n";
+    sleep 2;
+    print "variableStep chrom=chr$k\n";
+    for $i ( 0 .. $#{ $wighash{$k} } ) {
+        
+        if ($wighash{$k}[$i] < 1) {$wighash{$k}[$i] = 0}
+        print "$i\t$wighash{$k}[$i]\n";
+    }
+    #print "\n";
 }
+=cut
+
+
+#for $family ( keys %HoA ) {
+#    print "$family: ";
+#    for $i ( 0 .. $#{ $HoA{$family} } ) {
+#        print " $i = $HoA{$family}[$i]";
+#    }
+#    print "\n";
+#}
+
+
+
+my $k;
+my $wigcoord;
+
+# Print Wig from bedhash.  Note that WIG files are +1 based, BED files are zero-based.
+print "Generating wiggle file\n";
+print { $WIG } "track type=wiggle_0\n";
+#print "track type=bedGraph name='simulated read coverage'\n";
+for $k ( keys %wighash ) {
+    print { $WIG }  "variableStep chrom=chr$k\n";
+    for $i ( 0 .. $#{ $wighash{$k} } ) {  #Bedhash is a hash of arrays, with chr as key
+        
+        $wigcoord = $wighash{$k}[$i] + 1;
+        if ($wighash{$k}[$i] >= 1) {
+        
+        print { $WIG }  "$i\t$wighash{$k}[$i]\n";
+		}
+
+    }
+    #print "\n";
+}
+
+# Here is junction hash
+=pod
+for $k ( keys %junchash ) {
+   print "$k\t$junchash{$k}\n";
+}
+
+
+for $k ( keys %junchash ) {
+    print "$k: ";
+    for $i ( 0 .. $#{ $junchash{$i} } ) {
+        print " $i = $junchash{$i}[$i]";
+    }
+    print "\n";
+}
+
+
+
+foreach my $k (keys %junchash) {
+    print "The members of $k are\n";
+    foreach (@{$junchash{$k}}) {
+        print "\t$_\n";
+    }
+}
+
+=cut
+if ($type eq "tx") {
+	print { $JUNCTAB } "junction(chr_coord_direct)\tdensity\toffsets\n";
+	foreach my $k (keys %junchash) {
+		print { $JUNCTAB } "$k\t";
+		foreach (@{$junchash{$k}}) {
+			print { $JUNCTAB } "$_\t";
+		}
+		print { $JUNCTAB } "\n";
+	}
+}
+
+
+# Below is a BED-like format
+
+=pod
+print "track type=bedGraph name='simulated read coverage'\n";
+for $k ( keys %wighash ) {
+#    print "k is $k\n";
+#    sleep 2;
+#    print "variableStep chrom=chr$k\n";
+    for $i ( 0 .. $#{ $wighash{$k} } ) {
+        if ($wighash{$k}[$i] >= 1) {
+        
+        #if ($wighash{$k}[$i] < 1) {$wighash{$k}[$i] = 0}
+        #print "$i\t$wighash{$k}[$i]\n";
+        print "chr$k\t$i\t", $i + 1, "\t$wighash{$k}[$i]\n";
+		}
+
+    }
+    #print "\n";
+}
+
 =cut
