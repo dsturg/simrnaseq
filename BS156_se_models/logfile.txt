@@ -1,0 +1,13 @@
+Model building started on:
+2009-12-10 16:24:52
+Options for this run:
+filename = maps/all_BS156_SE.map
+ends = 1
+length = 75
+
+Here is the first line of the map file
+HWI-EAS299:3:1:2:203#0/1	-	3L	5561805	NNNNNNCNGNAGGGAATGGNNNCNCGCNGGAAGGGAATGAACATGGGCCTCAGNGGCTCGGCATCCTCATCGGAG	#################################=?7&<B54<=B?A??@37?<%<B>@@BBA>BBBAABA@BBBB	0	21:C>N,47:T>N,51:T>N,53:A>N,54:C>N,55:G>N,65:A>N,67:C>N,69:T>N,70:G>N,71:C>N,72:G>N,73:T>N,74:A>N
+
+21072461 mapped reads were used in this model
+Model building finished at:
+2009-12-10 16:57:18

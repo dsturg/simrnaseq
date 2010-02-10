@@ -1,0 +1,13 @@
+Model building started on:
+2009-12-23 10:14:43
+Options for this run:
+filename = maps/all_BS156_PE.map
+ends = 2
+length = 75
+
+Here is the first line of the map file
+HWUSI-EASXXX:3:1:0:1964#0/1	+	2R	15335292	NAGCTGTTCTTGTTCTGGATGTTCAGCATCTGCTCGTCGACCTCCTTCATGGACATGCGTCCACGGAAGATAGCTG	%,8788488888698884668688668)6878684466/7####################################	0	0:G>N,71:G>A,74:G>T
+
+43046664 mapped reads were used in this model
+Model building finished at:
+2009-12-23 12:17:01
